@@ -6,19 +6,15 @@ from PIL import Image
 import openai
 from datetime import datetime
 import time
-import threading
 from pathlib import Path
 import shutil
 from typing import Dict, List, Tuple, Optional
-import asyncio
-import aiohttp
-import aiofiles
 import math
 
 # Page config
 st.set_page_config(
-    page_title="Atelier-Scrapper",
-    page_icon="🎨",
+    page_title="Atelier OpenAI OCR",
+    page_icon="🔍",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -26,29 +22,22 @@ st.set_page_config(
 # Constants
 COST_THRESHOLD = 2.0  # Alert at $2
 PROCESSED_FOLDER = "processed"
-IMAGES_FOLDER = "images"
 CONFIG_FILE = "config.json"
 ITEMS_PER_PAGE = 12  # Number of processed items to show per page
 
-# OpenAI Models that support vision
+# OpenAI Models that support vision (removed gpt-4-vision-preview)
 VISION_MODELS = {
     "gpt-4o": {
         "name": "GPT-4o (Recommended)",
-        "cost_per_image": 0.01275,  # Approximate cost based on tokens
+        "cost_per_image": 0.01275,
         "description": "Latest multimodal model, best performance",
         "max_tokens": 4096
     },
     "gpt-4o-mini": {
         "name": "GPT-4o Mini (Budget)",
-        "cost_per_image": 0.00255,  # Lower cost option
+        "cost_per_image": 0.00255,
         "description": "Cost-effective option with good performance",
         "max_tokens": 16384
-    },
-    "gpt-4-vision-preview": {
-        "name": "GPT-4 Vision Preview",
-        "cost_per_image": 0.01275,
-        "description": "Original vision model, stable performance",
-        "max_tokens": 4096
     },
     "gpt-4-turbo": {
         "name": "GPT-4 Turbo",
@@ -58,8 +47,8 @@ VISION_MODELS = {
     }
 }
 
-# Enhanced product extraction prompt
-ENHANCED_PROMPT = """Extract the following specific fields from this product image. Be thorough and accurate:
+# Default extraction prompt
+DEFAULT_PROMPT = """Extract the following specific fields from this product image. Be thorough and accurate:
 
 **REQUIRED FIELDS:**
 1. **Product Name** - The main product title/name
@@ -147,11 +136,12 @@ class CostTracker:
         self.session_cost = 0.0
 
 class ImageProcessor:
-    def __init__(self, api_key: str, model_name: str = "gpt-4o"):
+    def __init__(self, api_key: str, model_name: str = "gpt-4o", prompt: str = DEFAULT_PROMPT):
         self.client = openai.OpenAI(api_key=api_key)
         self.cost_tracker = CostTracker()
         self.model_name = model_name
         self.model_info = VISION_MODELS.get(model_name, VISION_MODELS["gpt-4o"])
+        self.prompt = prompt
     
     def encode_image(self, image_path: str) -> str:
         """Encode image to base64 with optimization"""
@@ -191,7 +181,7 @@ class ImageProcessor:
                         "content": [
                             {
                                 "type": "text",
-                                "text": ENHANCED_PROMPT
+                                "text": self.prompt
                             },
                             {
                                 "type": "image_url",
@@ -308,10 +298,20 @@ class ImageProcessor:
             return {"error": "Could not read image info"}
 
 def initialize_session_state():
+    if 'api_key_submitted' not in st.session_state:
+        st.session_state.api_key_submitted = False
+    if 'api_key' not in st.session_state:
+        st.session_state.api_key = ""
     if 'processor' not in st.session_state:
         st.session_state.processor = None
     if 'selected_model' not in st.session_state:
         st.session_state.selected_model = "gpt-4o"
+    if 'current_prompt' not in st.session_state:
+        st.session_state.current_prompt = DEFAULT_PROMPT
+    if 'prompt_submitted' not in st.session_state:
+        st.session_state.prompt_submitted = False
+    if 'selected_images' not in st.session_state:
+        st.session_state.selected_images = []
     if 'processing' not in st.session_state:
         st.session_state.processing = False
     if 'current_image' not in st.session_state:
@@ -324,14 +324,6 @@ def initialize_session_state():
         st.session_state.continue_processing = True
     if 'current_page' not in st.session_state:
         st.session_state.current_page = 1
-    if 'selected_images' not in st.session_state:
-        st.session_state.selected_images = []
-    if 'uploaded_images' not in st.session_state:
-        st.session_state.uploaded_images = []
-    if 'temp_image_paths' not in st.session_state:
-        st.session_state.temp_image_paths = []
-    if 'processing_queue' not in st.session_state:
-        st.session_state.processing_queue = []
 
 def save_uploaded_file(uploaded_file, temp_dir="temp_uploads"):
     """Save uploaded file to temporary directory and return path"""
@@ -362,20 +354,6 @@ def process_folder_images(folder_path):
     
     return sorted(image_files)
 
-def get_images_from_selection():
-    """Get images from various sources: uploads, folder images, and manual selection"""
-    all_images = []
-    
-    # Add uploaded images
-    if st.session_state.temp_image_paths:
-        all_images.extend(st.session_state.temp_image_paths)
-    
-    # Add images from the images folder if it exists
-    folder_images = get_image_files()
-    all_images.extend(folder_images)
-    
-    return list(set(all_images))  # Remove duplicates
-
 def get_paginated_processed_folders(page: int = 1) -> Tuple[List[str], int, int]:
     """Get processed folders with pagination"""
     if not os.path.exists(PROCESSED_FOLDER):
@@ -395,16 +373,32 @@ def get_paginated_processed_folders(page: int = 1) -> Tuple[List[str], int, int]
     
     return page_items, total_pages, total_items
 
-def get_image_files() -> List[str]:
-    if not os.path.exists(IMAGES_FOLDER):
-        return []
+def save_uploaded_file(uploaded_file, temp_dir="temp_uploads"):
+    """Save uploaded file to temporary directory and return path"""
+    os.makedirs(temp_dir, exist_ok=True)
     
+    # Create unique filename to avoid conflicts
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{timestamp}_{uploaded_file.name}"
+    file_path = os.path.join(temp_dir, filename)
+    
+    with open(file_path, "wb") as f:
+        f.write(uploaded_file.getbuffer())
+    
+    return file_path
+
+def process_folder_images(folder_path):
+    """Extract all images from a folder recursively"""
     image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff', '.webp'}
     image_files = []
     
-    for file in os.listdir(IMAGES_FOLDER):
-        if any(file.lower().endswith(ext) for ext in image_extensions):
-            image_files.append(os.path.join(IMAGES_FOLDER, file))
+    try:
+        for root, dirs, files in os.walk(folder_path):
+            for file in files:
+                if any(file.lower().endswith(ext) for ext in image_extensions):
+                    image_files.append(os.path.join(root, file))
+    except Exception as e:
+        st.error(f"Error reading folder: {e}")
     
     return sorted(image_files)
 
@@ -613,19 +607,62 @@ def display_enhanced_processed_item(folder_path: str):
 def main():
     initialize_session_state()
     
-    st.title("🎨 Atelier-Scrapper")
-    st.subheader("AI-Powered Product Image Text Extraction System")
+    st.title("🔍 OpenAI OCR")
+    st.subheader("AI-Powered Image Text Extraction System")
     
-    # Sidebar for navigation and controls
-    with st.sidebar:
-        st.header("🔧 Configuration")
+    # Step 1: API Key Input and Submission
+    if not st.session_state.api_key_submitted:
+        st.header("� API Key Configuration")
         
-        # API Key input
-        api_key = st.text_input("OpenAI API Key", type="password", 
-                               help="Enter your OpenAI API key to start processing")
+        with st.form("api_key_form"):
+            api_key = st.text_input(
+                "Enter your OpenAI API Key", 
+                type="password",
+                help="Get your API key from https://platform.openai.com/api-keys"
+            )
+            
+            col1, col2 = st.columns([1, 4])
+            with col1:
+                submit_api = st.form_submit_button("Submit API Key", type="primary")
+            
+            if submit_api:
+                if api_key.strip():
+                    try:
+                        # Test the API key
+                        test_client = openai.OpenAI(api_key=api_key)
+                        # Make a simple API call to test
+                        test_client.models.list()
+                        
+                        st.session_state.api_key = api_key
+                        st.session_state.api_key_submitted = True
+                        st.success("✅ API Key validated successfully!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Invalid API Key: {str(e)}")
+                else:
+                    st.error("Please enter an API key")
         
-        # Model selection
-        if api_key:
+        # Instructions for new users
+        with st.expander("📖 How to get an OpenAI API Key"):
+            st.info("""
+            **Steps to get your API key:**
+            1. Visit [OpenAI Platform](https://platform.openai.com/api-keys)
+            2. Create an account or sign in
+            3. Click "Create new secret key"
+            4. Copy the key and paste it above
+            5. Make sure you have credits in your OpenAI account
+            
+            **Note:** You need to add billing information to your OpenAI account to use the API.
+            """)
+        
+        return
+    
+    # Step 2: Model Selection and Prompt Configuration
+    if not st.session_state.prompt_submitted:
+        st.header("⚙️ Configuration")
+        
+        with st.form("config_form"):
+            # Model selection
             st.subheader("🤖 AI Model Selection")
             
             model_options = list(VISION_MODELS.keys())
@@ -644,320 +681,230 @@ def main():
             
             # Display model info
             st.info(f"**{model_info['name']}**\n\n{model_info['description']}")
-            st.caption(f"💰 Estimated cost: ${model_info['cost_per_image']:.4f} per image")
-            st.caption(f"🚀 Max tokens: {model_info['max_tokens']:,}")
+            st.caption(f"💰 Cost: ${model_info['cost_per_image']:.4f} per image | 🚀 Max tokens: {model_info['max_tokens']:,}")
             
-            # Update processor if model changed
-            if (not st.session_state.processor or 
-                st.session_state.selected_model != selected_model):
-                st.session_state.selected_model = selected_model
-                st.session_state.processor = ImageProcessor(api_key, selected_model)
-        
-        # Cost tracking display
-        if st.session_state.processor:
-            st.header("💰 Cost Tracking")
-            cost_tracker = st.session_state.processor.cost_tracker
+            # Prompt editing
+            st.subheader("📝 Extraction Prompt")
+            st.write("Review and customize the prompt that will be used to extract text from images:")
             
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Total Cost", f"${cost_tracker.total_cost:.4f}")
-                st.metric("Images Processed", cost_tracker.images_processed)
-            with col2:
-                st.metric("Session Cost", f"${cost_tracker.session_cost:.4f}")
-                current_model_info = VISION_MODELS.get(st.session_state.selected_model, VISION_MODELS["gpt-4o"])
-                remaining_images = max(0, int((COST_THRESHOLD - cost_tracker.session_cost) / current_model_info["cost_per_image"]))
-                st.metric("Images until alert", remaining_images)
-            
-            # Progress bar for cost threshold
-            progress = min(cost_tracker.session_cost / COST_THRESHOLD, 1.0)
-            st.progress(progress, text=f"Progress to ${COST_THRESHOLD:.2f} threshold")
-        
-        st.divider()
-        
-        # Browse processed images with pagination
-        st.header("📁 Processed Images")
-        
-        page_items, total_pages, total_items = get_paginated_processed_folders(st.session_state.current_page)
-        
-        if total_items > 0:
-            st.caption(f"📊 Total: {total_items} processed items")
-            
-            # Pagination controls
-            col1, col2, col3 = st.columns([1, 2, 1])
-            
-            with col1:
-                if st.button("◀ Prev", disabled=(st.session_state.current_page <= 1)):
-                    st.session_state.current_page -= 1
-                    st.rerun()
-            
-            with col2:
-                st.write(f"Page {st.session_state.current_page} of {total_pages}")
-            
-            with col3:
-                if st.button("Next ▶", disabled=(st.session_state.current_page >= total_pages)):
-                    st.session_state.current_page += 1
-                    st.rerun()
-            
-            # Display items for current page
-            selected_folder = st.selectbox(
-                f"Items {(st.session_state.current_page-1)*ITEMS_PER_PAGE + 1}-{min(st.session_state.current_page*ITEMS_PER_PAGE, total_items)}:",
-                ["Select an item..."] + page_items,
-                key=f"folder_select_{st.session_state.current_page}"
+            current_prompt = st.text_area(
+                "Prompt",
+                value=st.session_state.current_prompt,
+                height=400,
+                help="This prompt tells the AI what information to extract from images"
             )
             
-            if selected_folder != "Select an item...":
-                if st.button("👁️ View Item", use_container_width=True):
-                    st.session_state.selected_processed = selected_folder
+            col1, col2 = st.columns([1, 4])
+            with col1:
+                submit_config = st.form_submit_button("Save Configuration", type="primary")
+            with col2:
+                if st.form_submit_button("Reset to Default"):
+                    st.session_state.current_prompt = DEFAULT_PROMPT
                     st.rerun()
-        else:
-            st.info("No processed images yet")
-            st.caption("Images will appear here after processing")
-    
-    # Main content area
-    if not api_key:
-        st.warning("Please enter your OpenAI API key in the sidebar to begin")
-        st.info("This application will help you extract and structure text from thousands of images efficiently.")
-        return
-    
-    # Check if we should display a processed item
-    if hasattr(st.session_state, 'selected_processed'):
-        folder_path = os.path.join(PROCESSED_FOLDER, st.session_state.selected_processed)
-        
-        # Header with navigation
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.header(f"📁 {st.session_state.selected_processed}")
-        with col2:
-            if st.button("⬅️ Back to Processing", use_container_width=True):
-                del st.session_state.selected_processed
+            
+            if submit_config:
+                st.session_state.selected_model = selected_model
+                st.session_state.current_prompt = current_prompt
+                st.session_state.prompt_submitted = True
+                
+                # Create processor with the selected configuration
+                st.session_state.processor = ImageProcessor(
+                    st.session_state.api_key, 
+                    selected_model, 
+                    current_prompt
+                )
+                
+                st.success("✅ Configuration saved!")
                 st.rerun()
         
-        # Display the processed item with enhanced formatting
-        display_enhanced_processed_item(folder_path)
-        
         return
     
-    # Welcome section for non-technical users
-    if not api_key:
-        st.warning("🔑 Please enter your OpenAI API key in the sidebar to begin")
-        
-        # Quick start guide
-        st.info("""
-        ### 🚀 Quick Start Guide for New Users
-        
-        **Step 1:** Get an OpenAI API key
-        - Visit [OpenAI Platform](https://platform.openai.com/api-keys)
-        - Create an account and generate an API key
-        - Enter it in the sidebar
-        
-        **Step 2:** Choose your AI model
-        - Select from available vision models in the sidebar
-        - GPT-4o is recommended for best results
-        - GPT-4o Mini is more cost-effective
-        
-        **Step 3:** Add your product images
-        - Images should be in the `images/` folder
-        - Supported formats: JPG, PNG, GIF, BMP, TIFF, WEBP
-        
-        **Step 4:** Start processing
-        - Click the "Start Processing Images" button
-        - Monitor costs and progress in real-time
-        - Results will be saved automatically
-        """)
-        
-        return
+    # Step 3: Image Selection and Processing
+    st.header("📁 Image Selection")
     
-    # Image source selection
-    st.header("📁 Select Image Sources")
-    
-    # Create tabs for different input methods
-    tab1, tab2, tab3 = st.tabs(["📂 Project Folder", "📤 Upload Images", "📁 Browse Folder"])
-    
-    with tab1:
-        # Get available images from project folder
-        image_files = get_image_files()
+    # Unified image selection interface
+    with st.form("image_selection_form"):
+        st.write("Choose images to process:")
         
-        if image_files:
-            st.success(f"✅ Found {len(image_files)} images in project folder")
-            st.session_state.folder_images = image_files
-        else:
-            st.warning(f"No images found in the '{IMAGES_FOLDER}' folder")
-            
-            with st.expander("📁 How to add images to project folder"):
-                st.info("""
-                **For Mac users:**
-                1. Open Finder
-                2. Navigate to this application folder
-                3. Open the 'images' folder
-                4. Drag and drop your product images into this folder
-                5. Refresh this page
-                
-                **Supported image formats:**
-                - JPG, JPEG (most common)
-                - PNG (with transparency)
-                - GIF, BMP, TIFF, WEBP
-                
-                **Tips for best results:**
-                - Use high-resolution images (at least 800x600)
-                - Ensure text is clearly visible
-                - Good lighting and contrast
-                - Minimal blur or distortion
-                """)
-    
-    with tab2:
-        st.write("Upload images directly from anywhere on your computer:")
-        
+        # Method 1: Upload files
         uploaded_files = st.file_uploader(
-            "Choose image files",
+            "Upload Image Files",
             type=['jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'webp'],
             accept_multiple_files=True,
-            help="Select one or more images to process. You can drag and drop files here."
+            help="Select one or more images to process"
         )
         
-        if uploaded_files:
-            st.success(f"✅ {len(uploaded_files)} files uploaded")
-            
-            # Save uploaded files to temporary location
-            temp_paths = []
-            for uploaded_file in uploaded_files:
-                temp_path = save_uploaded_file(uploaded_file)
-                if temp_path:
-                    temp_paths.append(temp_path)
-            
-            st.session_state.uploaded_images = temp_paths
-            
-            # Show preview of uploaded files
-            with st.expander("Preview uploaded files"):
-                cols = st.columns(min(3, len(temp_paths)))
-                for i, path in enumerate(temp_paths[:3]):  # Show first 3
-                    with cols[i]:
-                        st.image(path, caption=os.path.basename(path), use_container_width=True)
-                if len(temp_paths) > 3:
-                    st.caption(f"... and {len(temp_paths) - 3} more files")
-    
-    with tab3:
-        st.write("Browse and select a folder containing images:")
-        
+        # Method 2: Folder path
         folder_path = st.text_input(
-            "Folder path",
+            "Or enter folder path",
             placeholder="/Users/username/Pictures/ProductImages",
             help="Enter the full path to a folder containing images"
         )
         
-        if folder_path and os.path.exists(folder_path):
-            if st.button("📁 Load Images from Folder", use_container_width=True):
-                folder_images = process_folder_images(folder_path)
-                if folder_images:
-                    st.session_state.selected_folder_images = folder_images
-                    st.success(f"✅ Found {len(folder_images)} images in folder")
-                else:
-                    st.warning("No supported image files found in the selected folder")
-        elif folder_path:
-            st.error("Folder path does not exist")
-    
-    # Get all selected images from different sources
-    all_images = get_images_from_selection()
-    
-    if not all_images:
-        st.info("Please select images using one of the methods above")
-        return
-    
-    # Display processing overview
-    st.header("🚀 Processing Overview")
-    st.success(f"✅ Total images selected: {len(all_images)}")
-    
-    if st.session_state.processor:
-        current_model = st.session_state.selected_model
-        model_info = VISION_MODELS[current_model]
-        estimated_cost = len(all_images) * model_info["cost_per_image"]
-        
-        # Cost projection
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2 = st.columns([1, 4])
         with col1:
-            st.metric("📁 Images Selected", len(all_images))
+            load_images = st.form_submit_button("Load Images", type="primary")
+        
+        if load_images:
+            selected_images = []
+            
+            # Process uploaded files
+            if uploaded_files:
+                st.write("📤 Processing uploaded files...")
+                for uploaded_file in uploaded_files:
+                    temp_path = save_uploaded_file(uploaded_file)
+                    if temp_path:
+                        selected_images.append(temp_path)
+                st.success(f"✅ Loaded {len(selected_images)} uploaded files")
+            
+            # Process folder path
+            if folder_path and os.path.exists(folder_path):
+                st.write("📁 Processing folder...")
+                folder_images = process_folder_images(folder_path)
+                selected_images.extend(folder_images)
+                st.success(f"✅ Found {len(folder_images)} images in folder")
+            elif folder_path:
+                st.error("❌ Folder path does not exist")
+            
+            if selected_images:
+                st.session_state.selected_images = selected_images
+                st.success(f"🎉 Total images loaded: {len(selected_images)}")
+            else:
+                st.warning("No images selected. Please upload files or enter a valid folder path.")
+    
+    # Display selected images and processing controls
+    if st.session_state.selected_images:
+        st.header("🚀 Processing")
+        
+        num_images = len(st.session_state.selected_images)
+        model_info = VISION_MODELS[st.session_state.selected_model]
+        estimated_cost = num_images * model_info["cost_per_image"]
+        
+        # Processing overview
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("📁 Images Selected", num_images)
         with col2:
-            st.metric("🤖 Selected Model", model_info["name"].split(" (")[0])
+            st.metric("🤖 Model", model_info["name"].split(" (")[0])
         with col3:
             st.metric("💰 Estimated Cost", f"${estimated_cost:.4f}")
-        with col4:
-            alerts_expected = max(1, int(estimated_cost / COST_THRESHOLD))
-            st.metric("⚠️ Expected Alerts", alerts_expected)
         
-        # Cost warning for expensive operations
+        # Cost warning
         if estimated_cost > COST_THRESHOLD:
             st.warning(f"⚠️ High cost detected! This operation will cost approximately ${estimated_cost:.4f}")
-            st.info("Consider using GPT-4o Mini for cost-effective processing, or process images in smaller batches.")
-    
-    # Processing controls
-    st.header("🎮 Processing Controls")
-    
-    col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
-    
-    with col1:
-        if not st.session_state.processing:
-            # Submit button for manual processing control
-            if st.button("🚀 Start Processing All Images", type="primary", use_container_width=True):
-                if all_images:
-                    st.session_state.processing = True
-                    st.session_state.processed_count = 0
-                    st.session_state.continue_processing = True
-                    st.session_state.processing_queue = all_images.copy()
-                    st.rerun()
-                else:
-                    st.error("No images selected for processing")
-    
-    with col2:
-        if st.session_state.processing:
-            if st.button("⏸️ Pause", use_container_width=True):
-                st.session_state.processing = False
-                st.rerun()
-    
-    with col3:
-        if st.button("🔄 Refresh", use_container_width=True):
-            # Clear session state for fresh start
-            if 'uploaded_images' in st.session_state:
-                del st.session_state.uploaded_images
-            if 'selected_folder_images' in st.session_state:
-                del st.session_state.selected_folder_images
-            st.rerun()
-    
-    with col4:
-        # Process selected images button (for partial processing)
-        if st.button("🎯 Process Sample", help="Process first 3 images as a test", use_container_width=True):
-            if all_images:
-                sample_images = all_images[:3]
-                st.session_state.processing = True
-                st.session_state.processed_count = 0
-                st.session_state.continue_processing = True
-                st.session_state.processing_queue = sample_images
-                st.rerun()
-    
-    # Display selected images preview
-    if all_images:
-        with st.expander(f"📋 Preview Selected Images ({len(all_images)} total)", expanded=False):
-            # Show first few images in a grid
-            preview_count = min(6, len(all_images))
+        
+        # Image preview
+        with st.expander(f"📋 Preview Images ({num_images} total)", expanded=False):
+            preview_count = min(6, num_images)
             cols = st.columns(3)
             
             for i in range(preview_count):
                 with cols[i % 3]:
                     try:
-                        st.image(all_images[i], caption=os.path.basename(all_images[i]), use_container_width=True)
+                        st.image(st.session_state.selected_images[i], 
+                               caption=os.path.basename(st.session_state.selected_images[i]), 
+                               use_container_width=True)
                     except Exception as e:
-                        st.error(f"Error loading {os.path.basename(all_images[i])}: {str(e)}")
+                        st.error(f"Error loading {os.path.basename(st.session_state.selected_images[i])}: {str(e)}")
             
-            if len(all_images) > preview_count:
-                st.caption(f"... and {len(all_images) - preview_count} more images")
+            if num_images > preview_count:
+                st.caption(f"... and {num_images - preview_count} more images")
+        
+        # Processing controls
+        col1, col2, col3 = st.columns([2, 1, 1])
+        
+        with col1:
+            if not st.session_state.processing:
+                if st.button("🚀 Start Processing", type="primary", use_container_width=True):
+                    st.session_state.processing = True
+                    st.session_state.processed_count = 0
+                    st.session_state.continue_processing = True
+                    st.rerun()
+        
+        with col2:
+            if st.session_state.processing:
+                if st.button("⏸️ Pause", use_container_width=True):
+                    st.session_state.processing = False
+                    st.rerun()
+        
+        with col3:
+            if st.button("🔄 Reset", use_container_width=True):
+                st.session_state.selected_images = []
+                st.session_state.processing = False
+                st.session_state.processed_count = 0
+                st.rerun()
+        
+        # Processing section
+        if st.session_state.processing and st.session_state.continue_processing:
+            process_images(st.session_state.selected_images)
+        elif st.session_state.current_image:
+            display_current_processing()
     
-    # Processing section
-    if st.session_state.processing and st.session_state.continue_processing:
-        if hasattr(st.session_state, 'processing_queue') and st.session_state.processing_queue:
-            process_images(st.session_state.processing_queue)
-        else:
-            process_images(all_images)
-    elif st.session_state.current_image:
-        # Display current processing result
-        display_current_processing()
+    # Configuration reset button (always visible)
+    st.sidebar.header("🔧 Settings")
+    if st.sidebar.button("🔄 Reconfigure API & Prompt"):
+        st.session_state.api_key_submitted = False
+        st.session_state.prompt_submitted = False
+        st.session_state.processor = None
+        st.session_state.selected_images = []
+        st.session_state.processing = False
+        st.rerun()
+    
+    # Cost tracking in sidebar
+    if st.session_state.processor:
+        st.sidebar.header("💰 Cost Tracking")
+        cost_tracker = st.session_state.processor.cost_tracker
+        
+        st.sidebar.metric("Total Cost", f"${cost_tracker.total_cost:.4f}")
+        st.sidebar.metric("Session Cost", f"${cost_tracker.session_cost:.4f}")
+        st.sidebar.metric("Images Processed", cost_tracker.images_processed)
+        
+        # Progress to threshold
+        progress = min(cost_tracker.session_cost / COST_THRESHOLD, 1.0)
+        st.sidebar.progress(progress, text=f"Progress to ${COST_THRESHOLD:.2f} threshold")
+    
+    # Processed images browser in sidebar
+    display_processed_sidebar()
+
+def display_processed_sidebar():
+    """Display processed images browser in sidebar"""
+    st.sidebar.header("📁 Processed Images")
+    
+    page_items, total_pages, total_items = get_paginated_processed_folders(st.session_state.current_page)
+    
+    if total_items > 0:
+        st.sidebar.caption(f"📊 Total: {total_items} processed items")
+        
+        # Pagination controls
+        col1, col2, col3 = st.sidebar.columns([1, 2, 1])
+        
+        with col1:
+            if st.button("◀", disabled=(st.session_state.current_page <= 1), key="prev_page"):
+                st.session_state.current_page -= 1
+                st.rerun()
+        
+        with col2:
+            st.write(f"Page {st.session_state.current_page} of {total_pages}")
+        
+        with col3:
+            if st.button("▶", disabled=(st.session_state.current_page >= total_pages), key="next_page"):
+                st.session_state.current_page += 1
+                st.rerun()
+        
+        # Display items for current page
+        selected_folder = st.sidebar.selectbox(
+            f"Items {(st.session_state.current_page-1)*ITEMS_PER_PAGE + 1}-{min(st.session_state.current_page*ITEMS_PER_PAGE, total_items)}:",
+            ["Select an item..."] + page_items,
+            key=f"folder_select_{st.session_state.current_page}"
+        )
+        
+        if selected_folder != "Select an item...":
+            if st.sidebar.button("👁️ View Item", use_container_width=True):
+                st.session_state.selected_processed = selected_folder
+                st.rerun()
+    else:
+        st.sidebar.info("No processed images yet")
+        st.sidebar.caption("Images will appear here after processing")
 
 def process_images(image_files: List[str]):
     processor = st.session_state.processor

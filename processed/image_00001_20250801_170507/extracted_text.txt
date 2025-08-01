@@ -1,0 +1,44 @@
+=== ATELIER-SCRAPPER EXTRACTION RESULTS ===
+File: 20250801_170413_tempImageQOXurs.jpg
+Processed: 2025-08-01T17:05:07.703487
+Model: gpt-4o
+Success: True
+Cost: $0.0127
+Processing Time: 19.24s
+
+=== EXTRACTED TEXT ===
+```
+PRODUCT NAME: Firming & Elastic DIY Mask
+
+CLAIMS: 
+- A hydrating and firming gel mask
+- Builds protection shield to the rough and fragile skin
+- Makes it smooth and resilient
+
+CALL-OUT INGREDIENTS:
+- Papaya mango retinol
+
+FULL INGREDIENTS LIST:
+MASK INGREDIENTS: Aqua, Glycerin, Propylene Glycol, Algin, Potassium Alginate, Carica Papaya Fruit Extract, Retinyl Palmitate, Mangifera Indica Fruit Extract, Phenoxyethanol, Chondrus Crispus Powder, Tetrapotassium Pyrophosphate, Allantoin, Chlorphenesin, PEG-40 Hydrogenated Castor Oil, Citric Acid, Synthetic Fluorphlogopite, CI 77891, Parfum, CI 77491, Tin Oxide, Potassium Sorbate, Sodium Benzoate, Tocopherol, Ethylhexylglycerin.
+
+ESSENCE INGREDIENTS: Aqua, Calcium Sulfate, Propylene Glycol, Hydroxypropyl Methylcellulose, Xanthan Gum, Phenoxyethanol, Chlorphenesin.
+
+NET VOLUME: [Unclear]
+
+USAGE INSTRUCTIONS:
+After washing your face, tear the mask bag along the dotted line, split into three parts, tear the white emulsion essence bag, pour the essence into another mask bag, and then use a mixing stick to stir the two until the semi-coagulated state, evenly apply on the skin. (Attention: Apply within 3 minutes to avoid affecting the use effect) After 15 to 20 minutes, tear off the solidified soft film, and rectify the surface of the skin with toner.
+
+MANUFACTURING/EXPIRY DATES:
+[Unclear]
+
+BARCODE: [Unclear]
+
+BRAND: Mond'Sub
+
+ADDITIONAL INFO:
+- CAUTIONS:
+  1. Store in a dry and cool place, avoid direct sun exposure.
+  2. If any discomfort or allergic symptom occurs, please discontinue using immediately and consult a doctor if necessary.
+  3. Keep away from the reach of children.
+- DO NOT EAT
+```
