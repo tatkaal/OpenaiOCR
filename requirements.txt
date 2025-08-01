@@ -1,0 +1,6 @@
+streamlit
+openai
+Pillow
+aiohttp
+aiofiles
+pathlib2
