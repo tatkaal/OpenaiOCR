@@ -1,0 +1,43 @@
+=== OPENAI OCR EXTRACTION RESULTS ===
+File: 20250801_172335_4BB97FC6-E164-41C9-A86A-6CE828F33278_1_105_c.jpeg
+Processed: 2025-08-01T17:24:07.863853
+Model: gpt-4o
+Success: True
+Cost: $0.0127
+Processing Time: 32.69s
+
+=== EXTRACTED TEXT ===
+```
+PRODUCT NAME: [Not visible]
+
+CLAIMS: 
+- Enriched with coconut for intensive moisture
+
+CALL-OUT INGREDIENTS:
+- Coconut extract
+
+FULL INGREDIENTS LIST:
+AQUA, GLYCERIN, PROPYLENE GLYCOL, GLYCERETH-26, 1,2-HEXANEDIOL, CARBOMER, SACCHARIDE ISOMERATE, GLYCERYL ACRYLATE/ACRYLIC ACID COPOLYMER, PEG-40 HYDROGENATED CASTOR OIL, BUTYLENE GLYCOL, GLYCERYL CAPRYLATE, XANTHAN GUM, PHENOXYETHANOL, PARFUM, ETHYLHEXYLGLYCERIN, DISODIUM EDTA, COCOS NUCIFERA (COCONUT) FRUIT EXTRACT, PORTULACA OLERACEA EXTRACT, PEG-60 HYDROGENATED CASTOR OIL, PEG-14M, DIPOTASSIUM GLYCYRRHIZATE, GLYCYRRHIZA GLABRA (LICORICE) ROOT EXTRACT, PAEONIA LACTIFLORA ROOT EXTRACT, CHAMOMILLA RECUTITA (MATRICARIA) FLOWER EXTRACT, SCUTELLARIA BAICALENSIS ROOT EXTRACT, ROSMARINUS OFFICINALIS (ROSEMARY) LEAF EXTRACT, CAMELLIA SINENSIS LEAF EXTRACT
+
+NET VOLUME: [Not visible]
+
+USAGE INSTRUCTIONS:
+After cleansing the face, take out the mask and unfold it, stick it on the face and gently press the mask with your fingers to attach it to the face completely, relax and enjoy 15-20 minutes, let the skin fully absorb the nutrients, and not wash with the remaining essence.
+
+MANUFACTURING/EXPIRY DATES:
+- MFG: 2023.03.28
+- EXP: 2025.03.27
+
+BARCODE: 6973566825519
+
+BRAND: [Not visible]
+
+ADDITIONAL INFO:
+- CAUTIONS: 
+  1. Store in a dry and cool place, avoid direct sun exposure.
+  2. If any discomfort or allergic symptoms, please discontinue using immediately and consult a doctor if necessary.
+  3. Not to be used for children under three years of age.
+- Made in PRC
+- SHELF TIME: 3 years
+- PRODUCTION DATE: See the package
+```

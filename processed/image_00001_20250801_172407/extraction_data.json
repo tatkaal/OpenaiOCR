@@ -1,0 +1,20 @@
+{
+  "original_path": "temp_uploads/20250801_172335_4BB97FC6-E164-41C9-A86A-6CE828F33278_1_105_c.jpeg",
+  "extracted_text": "```\nPRODUCT NAME: [Not visible]\n\nCLAIMS: \n- Enriched with coconut for intensive moisture\n\nCALL-OUT INGREDIENTS:\n- Coconut extract\n\nFULL INGREDIENTS LIST:\nAQUA, GLYCERIN, PROPYLENE GLYCOL, GLYCERETH-26, 1,2-HEXANEDIOL, CARBOMER, SACCHARIDE ISOMERATE, GLYCERYL ACRYLATE/ACRYLIC ACID COPOLYMER, PEG-40 HYDROGENATED CASTOR OIL, BUTYLENE GLYCOL, GLYCERYL CAPRYLATE, XANTHAN GUM, PHENOXYETHANOL, PARFUM, ETHYLHEXYLGLYCERIN, DISODIUM EDTA, COCOS NUCIFERA (COCONUT) FRUIT EXTRACT, PORTULACA OLERACEA EXTRACT, PEG-60 HYDROGENATED CASTOR OIL, PEG-14M, DIPOTASSIUM GLYCYRRHIZATE, GLYCYRRHIZA GLABRA (LICORICE) ROOT EXTRACT, PAEONIA LACTIFLORA ROOT EXTRACT, CHAMOMILLA RECUTITA (MATRICARIA) FLOWER EXTRACT, SCUTELLARIA BAICALENSIS ROOT EXTRACT, ROSMARINUS OFFICINALIS (ROSEMARY) LEAF EXTRACT, CAMELLIA SINENSIS LEAF EXTRACT\n\nNET VOLUME: [Not visible]\n\nUSAGE INSTRUCTIONS:\nAfter cleansing the face, take out the mask and unfold it, stick it on the face and gently press the mask with your fingers to attach it to the face completely, relax and enjoy 15-20 minutes, let the skin fully absorb the nutrients, and not wash with the remaining essence.\n\nMANUFACTURING/EXPIRY DATES:\n- MFG: 2023.03.28\n- EXP: 2025.03.27\n\nBARCODE: 6973566825519\n\nBRAND: [Not visible]\n\nADDITIONAL INFO:\n- CAUTIONS: \n  1. Store in a dry and cool place, avoid direct sun exposure.\n  2. If any discomfort or allergic symptoms, please discontinue using immediately and consult a doctor if necessary.\n  3. Not to be used for children under three years of age.\n- Made in PRC\n- SHELF TIME: 3 years\n- PRODUCTION DATE: See the package\n```",
+  "success": true,
+  "error": "",
+  "cost": 0.01275,
+  "processing_time": 32.6878080368042,
+  "model_used": "gpt-4o",
+  "timestamp": "2025-08-01T17:24:07.863853",
+  "image_info": {
+    "filename": "20250801_172335_4BB97FC6-E164-41C9-A86A-6CE828F33278_1_105_c.jpeg",
+    "format": "JPEG",
+    "mode": "RGB",
+    "size": [
+      1024,
+      768
+    ],
+    "file_size": 135559
+  }
+}
