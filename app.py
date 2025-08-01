@@ -324,6 +324,57 @@ def initialize_session_state():
         st.session_state.continue_processing = True
     if 'current_page' not in st.session_state:
         st.session_state.current_page = 1
+    if 'selected_images' not in st.session_state:
+        st.session_state.selected_images = []
+    if 'uploaded_images' not in st.session_state:
+        st.session_state.uploaded_images = []
+    if 'temp_image_paths' not in st.session_state:
+        st.session_state.temp_image_paths = []
+    if 'processing_queue' not in st.session_state:
+        st.session_state.processing_queue = []
+
+def save_uploaded_file(uploaded_file, temp_dir="temp_uploads"):
+    """Save uploaded file to temporary directory and return path"""
+    os.makedirs(temp_dir, exist_ok=True)
+    
+    # Create unique filename to avoid conflicts
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{timestamp}_{uploaded_file.name}"
+    file_path = os.path.join(temp_dir, filename)
+    
+    with open(file_path, "wb") as f:
+        f.write(uploaded_file.getbuffer())
+    
+    return file_path
+
+def process_folder_images(folder_path):
+    """Extract all images from a folder"""
+    image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff', '.webp'}
+    image_files = []
+    
+    try:
+        for root, dirs, files in os.walk(folder_path):
+            for file in files:
+                if any(file.lower().endswith(ext) for ext in image_extensions):
+                    image_files.append(os.path.join(root, file))
+    except Exception as e:
+        st.error(f"Error reading folder: {e}")
+    
+    return sorted(image_files)
+
+def get_images_from_selection():
+    """Get images from various sources: uploads, folder images, and manual selection"""
+    all_images = []
+    
+    # Add uploaded images
+    if st.session_state.temp_image_paths:
+        all_images.extend(st.session_state.temp_image_paths)
+    
+    # Add images from the images folder if it exists
+    folder_images = get_image_files()
+    all_images.extend(folder_images)
+    
+    return list(set(all_images))  # Remove duplicates
 
 def get_paginated_processed_folders(page: int = 1) -> Tuple[List[str], int, int]:
     """Get processed folders with pagination"""
@@ -716,47 +767,114 @@ def main():
         
         return
     
-    # Get available images
-    image_files = get_image_files()
+    # Image source selection
+    st.header("📁 Select Image Sources")
     
-    if not image_files:
-        st.warning(f"No images found in the '{IMAGES_FOLDER}' folder")
+    # Create tabs for different input methods
+    tab1, tab2, tab3 = st.tabs(["📂 Project Folder", "📤 Upload Images", "📁 Browse Folder"])
+    
+    with tab1:
+        # Get available images from project folder
+        image_files = get_image_files()
         
-        with st.expander("📁 How to add images"):
-            st.info("""
-            **For Mac users:**
-            1. Open Finder
-            2. Navigate to this application folder
-            3. Open the 'images' folder
-            4. Drag and drop your product images into this folder
-            5. Refresh this page
+        if image_files:
+            st.success(f"✅ Found {len(image_files)} images in project folder")
+            st.session_state.folder_images = image_files
+        else:
+            st.warning(f"No images found in the '{IMAGES_FOLDER}' folder")
             
-            **Supported image formats:**
-            - JPG, JPEG (most common)
-            - PNG (with transparency)
-            - GIF, BMP, TIFF, WEBP
-            
-            **Tips for best results:**
-            - Use high-resolution images (at least 800x600)
-            - Ensure text is clearly visible
-            - Good lighting and contrast
-            - Minimal blur or distortion
-            """)
+            with st.expander("📁 How to add images to project folder"):
+                st.info("""
+                **For Mac users:**
+                1. Open Finder
+                2. Navigate to this application folder
+                3. Open the 'images' folder
+                4. Drag and drop your product images into this folder
+                5. Refresh this page
+                
+                **Supported image formats:**
+                - JPG, JPEG (most common)
+                - PNG (with transparency)
+                - GIF, BMP, TIFF, WEBP
+                
+                **Tips for best results:**
+                - Use high-resolution images (at least 800x600)
+                - Ensure text is clearly visible
+                - Good lighting and contrast
+                - Minimal blur or distortion
+                """)
+    
+    with tab2:
+        st.write("Upload images directly from anywhere on your computer:")
         
+        uploaded_files = st.file_uploader(
+            "Choose image files",
+            type=['jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'webp'],
+            accept_multiple_files=True,
+            help="Select one or more images to process. You can drag and drop files here."
+        )
+        
+        if uploaded_files:
+            st.success(f"✅ {len(uploaded_files)} files uploaded")
+            
+            # Save uploaded files to temporary location
+            temp_paths = []
+            for uploaded_file in uploaded_files:
+                temp_path = save_uploaded_file(uploaded_file)
+                if temp_path:
+                    temp_paths.append(temp_path)
+            
+            st.session_state.uploaded_images = temp_paths
+            
+            # Show preview of uploaded files
+            with st.expander("Preview uploaded files"):
+                cols = st.columns(min(3, len(temp_paths)))
+                for i, path in enumerate(temp_paths[:3]):  # Show first 3
+                    with cols[i]:
+                        st.image(path, caption=os.path.basename(path), use_container_width=True)
+                if len(temp_paths) > 3:
+                    st.caption(f"... and {len(temp_paths) - 3} more files")
+    
+    with tab3:
+        st.write("Browse and select a folder containing images:")
+        
+        folder_path = st.text_input(
+            "Folder path",
+            placeholder="/Users/username/Pictures/ProductImages",
+            help="Enter the full path to a folder containing images"
+        )
+        
+        if folder_path and os.path.exists(folder_path):
+            if st.button("📁 Load Images from Folder", use_container_width=True):
+                folder_images = process_folder_images(folder_path)
+                if folder_images:
+                    st.session_state.selected_folder_images = folder_images
+                    st.success(f"✅ Found {len(folder_images)} images in folder")
+                else:
+                    st.warning("No supported image files found in the selected folder")
+        elif folder_path:
+            st.error("Folder path does not exist")
+    
+    # Get all selected images from different sources
+    all_images = get_images_from_selection()
+    
+    if not all_images:
+        st.info("Please select images using one of the methods above")
         return
     
     # Display processing overview
-    st.success(f"✅ Found {len(image_files)} images ready for processing")
+    st.header("🚀 Processing Overview")
+    st.success(f"✅ Total images selected: {len(all_images)}")
     
     if st.session_state.processor:
         current_model = st.session_state.selected_model
         model_info = VISION_MODELS[current_model]
-        estimated_cost = len(image_files) * model_info["cost_per_image"]
+        estimated_cost = len(all_images) * model_info["cost_per_image"]
         
         # Cost projection
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("📁 Images Found", len(image_files))
+            st.metric("📁 Images Selected", len(all_images))
         with col2:
             st.metric("🤖 Selected Model", model_info["name"].split(" (")[0])
         with col3:
@@ -764,17 +882,29 @@ def main():
         with col4:
             alerts_expected = max(1, int(estimated_cost / COST_THRESHOLD))
             st.metric("⚠️ Expected Alerts", alerts_expected)
+        
+        # Cost warning for expensive operations
+        if estimated_cost > COST_THRESHOLD:
+            st.warning(f"⚠️ High cost detected! This operation will cost approximately ${estimated_cost:.4f}")
+            st.info("Consider using GPT-4o Mini for cost-effective processing, or process images in smaller batches.")
     
     # Processing controls
-    col1, col2, col3 = st.columns([2, 1, 1])
+    st.header("🎮 Processing Controls")
+    
+    col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
     
     with col1:
         if not st.session_state.processing:
-            if st.button("🚀 Start Processing Images", type="primary", use_container_width=True):
-                st.session_state.processing = True
-                st.session_state.processed_count = 0
-                st.session_state.continue_processing = True
-                st.rerun()
+            # Submit button for manual processing control
+            if st.button("🚀 Start Processing All Images", type="primary", use_container_width=True):
+                if all_images:
+                    st.session_state.processing = True
+                    st.session_state.processed_count = 0
+                    st.session_state.continue_processing = True
+                    st.session_state.processing_queue = all_images.copy()
+                    st.rerun()
+                else:
+                    st.error("No images selected for processing")
     
     with col2:
         if st.session_state.processing:
@@ -784,11 +914,47 @@ def main():
     
     with col3:
         if st.button("🔄 Refresh", use_container_width=True):
+            # Clear session state for fresh start
+            if 'uploaded_images' in st.session_state:
+                del st.session_state.uploaded_images
+            if 'selected_folder_images' in st.session_state:
+                del st.session_state.selected_folder_images
             st.rerun()
+    
+    with col4:
+        # Process selected images button (for partial processing)
+        if st.button("🎯 Process Sample", help="Process first 3 images as a test", use_container_width=True):
+            if all_images:
+                sample_images = all_images[:3]
+                st.session_state.processing = True
+                st.session_state.processed_count = 0
+                st.session_state.continue_processing = True
+                st.session_state.processing_queue = sample_images
+                st.rerun()
+    
+    # Display selected images preview
+    if all_images:
+        with st.expander(f"📋 Preview Selected Images ({len(all_images)} total)", expanded=False):
+            # Show first few images in a grid
+            preview_count = min(6, len(all_images))
+            cols = st.columns(3)
+            
+            for i in range(preview_count):
+                with cols[i % 3]:
+                    try:
+                        st.image(all_images[i], caption=os.path.basename(all_images[i]), use_container_width=True)
+                    except Exception as e:
+                        st.error(f"Error loading {os.path.basename(all_images[i])}: {str(e)}")
+            
+            if len(all_images) > preview_count:
+                st.caption(f"... and {len(all_images) - preview_count} more images")
     
     # Processing section
     if st.session_state.processing and st.session_state.continue_processing:
-        process_images(image_files)
+        if hasattr(st.session_state, 'processing_queue') and st.session_state.processing_queue:
+            process_images(st.session_state.processing_queue)
+        else:
+            process_images(all_images)
     elif st.session_state.current_image:
         # Display current processing result
         display_current_processing()
