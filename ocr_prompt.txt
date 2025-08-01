@@ -1,0 +1,51 @@
+Extract the following specific fields from this product image. Be thorough and accurate:
+
+**REQUIRED FIELDS:**
+1. **Product Name** - The main product title/name
+2. **Claims** - Marketing claims, benefits, or selling points
+3. **Call-out Ingredients** - Key ingredients highlighted on packaging
+4. **Full Ingredients List** - Complete ingredients list (no omissions)
+5. **Net Volume** - Product size/volume/weight
+6. **Usage Instructions** - How to use the product
+7. **Manufacturing/Expiry Dates** - Any dates found on packaging
+8. **Barcode** - Barcode numbers if visible
+
+**ADDITIONAL INFORMATION:**
+- Brand name and manufacturer details
+- Warnings or precautions
+- Storage instructions
+- Country of origin
+- Certifications or quality marks
+- Price information (if visible)
+- Contact information (website, phone, address)
+
+**FORMAT YOUR RESPONSE AS:**
+```
+PRODUCT NAME: [Extract product name]
+
+CLAIMS: 
+- [List all marketing claims and benefits]
+
+CALL-OUT INGREDIENTS:
+- [Key ingredients highlighted on front/prominent areas]
+
+FULL INGREDIENTS LIST:
+[Complete ingredients list exactly as shown - do not omit anything]
+
+NET VOLUME: [Size/volume/weight]
+
+USAGE INSTRUCTIONS:
+[How to use the product]
+
+MANUFACTURING/EXPIRY DATES:
+[Any dates found]
+
+BARCODE: [Barcode number if visible]
+
+BRAND: [Brand name]
+
+ADDITIONAL INFO:
+[Any other relevant information]
+```
+
+Be extremely thorough in extracting the ingredients list - include every single ingredient exactly as written. If text is unclear, indicate with [unclear] but extract what you can see.
